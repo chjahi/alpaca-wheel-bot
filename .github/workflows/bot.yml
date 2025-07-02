@@ -2,18 +2,19 @@ name: Alpaca Wheel Bot
 
 on:
   schedule:
-    # adjust for your time zone (America/Denver = UTC-7 in summer)
-    - cron: '30 14 * * 1-5'   # 08:30 MDT – market open check
-    - cron: '0 20  * * 1-5'   # 14:00 MDT – mid-session check
-  workflow_dispatch:          # allows manual trigger
+    # ---- times are UTC ----
+    - cron: '30 14 * * 1-5'   # 08:30 MDT (market open)
+    - cron: '00 20 * * 1-5'   # 14:00 MDT (mid-session)
+  workflow_dispatch:
 
 jobs:
-  wheel-run:
+  wheel:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: '3.11'}
+        with:
+          python-version: '3.11'
       - run: pip install -r requirements.txt
       - run: python wheel_bot.py
         env:
