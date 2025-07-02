@@ -1,70 +1,50 @@
 #!/usr/bin/env python3
 """
-Minimal Options Wheel bot for Alpaca.
-Runs once per invocation – perfect for GitHub Actions cron.
-Feel free to expand the selection logic; this is just a safe stub.
+Minimal Options Wheel bot for Alpaca – one-shot per run.
 """
-import os, datetime as dt, pytz, math
+import os, datetime as dt
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce, OptionClass
-from alpaca.data.timeframe import TimeFrame
-from alpaca.data.historical import StockHistoricalDataClient
 
-# --- env vars ---
-KEY  = os.getenv("ALPACA_KEY_ID")
+KEY    = os.getenv("ALPACA_KEY_ID")
 SECRET = os.getenv("ALPACA_SECRET_KEY")
-PAPER = os.getenv("ALPACA_PAPER", "true").lower() == "true"
-SYMBOL = os.getenv("UNDERLYING", "SPY")          # the wheel underlying
-DELTA  = float(os.getenv("TARGET_DELTA", "0.15"))  # ~15-delta strikes
+PAPER  = os.getenv("ALPACA_PAPER", "true").lower() == "true"
+
+SYMBOL = os.getenv("UNDERLYING", "SPY")
+DELTA  = float(os.getenv("TARGET_DELTA", "0.15"))
 SIZE   = int(os.getenv("CONTRACTS", "1"))
 
-# --- clients ---
 trade = TradingClient(KEY, SECRET, paper=PAPER)
-data  = StockHistoricalDataClient()
 
-def choose_expiry():
-    """Pick the nearest weekly expiry ≥ 8 days out (stub)."""
-    today = dt.date.today()
-    # every Friday until 6 weeks out
-    fridays = [today + dt.timedelta(days=i)
-               for i in range(8, 42) if (today + dt.timedelta(days=i)).weekday()==4]
-    return fridays[0]
+def next_weekly_friday(start=dt.date.today(), min_days=8):
+    for d in range(min_days, 42):
+        day = start + dt.timedelta(days=d)
+        if day.weekday() == 4:
+            return day
 
-def run_wheel():
-    account = trade.get_account()
-    pos     = trade.get_all_positions()
-    has_shares = any(p.symbol == SYMBOL and int(p.qty) > 0 for p in pos)
+def run():
+    has_shares = any(p.symbol == SYMBOL and int(p.qty) > 0
+                     for p in trade.get_all_positions())
+    expiry = next_weekly_friday()
 
-    expiry = choose_expiry()
+    order_args = dict(
+        underlying_symbol = SYMBOL,
+        qty              = SIZE,
+        delta            = DELTA,
+        expiry           = str(expiry),
+        time_in_force    = TimeInForce.DAY,
+    )
 
-    if not has_shares:
-        # SELL a cash-secured PUT
+    if not has_shares:          # SELL cash-secured PUT
         print(f"No {SYMBOL} shares – selling CSP for {expiry}")
-        trade.submit_option_order(
-            underlying_symbol=SYMBOL,
-            option_symbol=None,        # let Alpaca pick strike by delta
-            option_class=OptionClass.PUT,
-            contract_size=100,
-            side=OrderSide.SELL,
-            qty=SIZE,
-            time_in_force=TimeInForce.DAY,
-            delta=DELTA,
-            expiry=expiry.isoformat()
-        )
-    else:
-        # HAVE shares – SELL a covered CALL
-        print(f"Holding {SYMBOL} – selling covered CALL for {expiry}")
-        trade.submit_option_order(
-            underlying_symbol=SYMBOL,
-            option_symbol=None,
-            option_class=OptionClass.CALL,
-            contract_size=100,
-            side=OrderSide.SELL,
-            qty=SIZE,
-            time_in_force=TimeInForce.DAY,
-            delta=DELTA,
-            expiry=expiry.isoformat()
-        )
+        trade.submit_option_order(option_class = OptionClass.PUT,
+                                  side         = OrderSide.SELL,
+                                  **order_args)
+    else:                       # SELL covered CALL
+        print(f"Holding shares – selling covered CALL for {expiry}")
+        trade.submit_option_order(option_class = OptionClass.CALL,
+                                  side         = OrderSide.SELL,
+                                  **order_args)
 
 if __name__ == "__main__":
-    run_wheel()
+    run()
