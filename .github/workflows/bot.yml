@@ -3,8 +3,8 @@ name: Alpaca Wheel Bot
 on:
   schedule:
     # ---- times are UTC ----
-    - cron: '30 14 * * 1-5'   # 08:30 MDT (market open)
-    - cron: '00 20 * * 1-5'   # 14:00 MDT (mid-session)
+   # - cron: '30 14 * * 1-5'   # 08:30 MDT (market open)
+   # - cron: '00 20 * * 1-5'   # 14:00 MDT (mid-session)
   workflow_dispatch:
 
 jobs:
